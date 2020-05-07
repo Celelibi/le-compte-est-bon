@@ -4,7 +4,7 @@ import sys
 import random
 from collections import Counter
 from cpython cimport PyObject_Calloc as calloc, PyObject_Free as free
-from libc cimport limits
+from libc cimport limits, stdio
 
 
 
@@ -30,45 +30,36 @@ cdef struct count:
 
 
 
-prio = {'+': 0, '-': 0, '*': 1, '/': 1}
-assoc = {'+': True, '-': False, '*': True, '/': False}
+cdef void printexpr(intopstack *stack, int pprio, bint passoc, bint isleft) nogil:
+    if not stack.isop:
+        stdio.printf("%d", stack.val)
+        return
 
-cdef exprstr_(stack):
-    global prio, assoc
+    cdef int opprio
+    cdef bint opassoc
+    cdef bint needparens
 
-    top = stack.pop()
-    opprio = prio.get(top, 2)
-    opassoc = assoc.get(top, True)
+    opprio = 1 if stack.op in (b'+', b'-') else 2
+    opassoc = (stack.op in (b'+', b'*'))
 
-    if opprio == 2:
-        return top, opprio, opassoc
+    needparens = (opprio < pprio) or (not isleft and opprio == pprio and not passoc)
 
-    b, bprio, bassoc = exprstr_(stack)
-    a, aprio, aassoc = exprstr_(stack)
+    if needparens:
+        stdio.printf("(")
 
-    if opprio > aprio:
-        a = "(%s)" % a
-    if opprio > bprio or (opprio == bprio and not opassoc):
-        b = "(%s)" % b
+    printexpr(stack.nextopstack.end, opprio, opassoc, True)
+    stdio.printf(" %c ", stack.op)
+    printexpr(stack.nextopstack, opprio, opassoc, False)
 
-    expr = "%s %s %s" % (a, top, b)
-    return expr, opprio, opassoc
+    if needparens:
+        stdio.printf(")")
 
 
-cdef str exprstr(intopstack *stack):
-    cdef intopstack *p = stack
-    cdef list l = []
-    while p is not NULL:
-        if p.isop:
-            l.append(chr(p.op))
-        else:
-            l.append(str(p.val))
-        p = p.nextopstack
 
-    l.reverse()
-    ret = exprstr_(l)
-    assert l == []
-    return ret[0]
+cdef void printres(int total, intopstack *stack) nogil:
+    stdio.printf("%d = ", total)
+    printexpr(stack, 0, True, True)
+    stdio.printf("\n")
 
 
 
@@ -151,7 +142,7 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
     if estack is not NULL and estack.nextestack is NULL:
         diff = total - estack.val
         if diff == 0:
-            print(total, "=", exprstr(stack))
+            printres(total, stack)
 
         if diff < 0:
             diff = -diff
