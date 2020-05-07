@@ -165,7 +165,7 @@ def main():
         print("Values:", ", ".join(str(v) for v in values))
         print("Total:", total)
 
-    cdef count *counts
+    cdef count *counts = NULL
     c = Counter(values)
     counts = <count *>calloc(len(c), sizeof(counts[0]))
 
