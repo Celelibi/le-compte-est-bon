@@ -70,6 +70,14 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
     cdef intestack newestack
     cdef intopstack newopstack
 
+    if estack is not NULL and estack.nextestack is NULL:
+        diff = total - estack.val
+        if diff == 0:
+            printres(total, stack)
+        if diff < 0:
+            diff = -diff
+        bestsolution = diff
+
     newopstack.nextopstack = stack
 
     if estack is not NULL and estack.nextestack is not NULL:
@@ -137,16 +145,6 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
         bestsolution = min(bestsolution, sol)
         ppcnt = &pcnt.nextcount
         pcnt = pcnt.nextcount
-
-    if estack is not NULL and estack.nextestack is NULL:
-        diff = total - estack.val
-        if diff == 0:
-            printres(total, stack)
-
-        if diff < 0:
-            diff = -diff
-
-        bestsolution = min(bestsolution, diff)
 
     return bestsolution
 
