@@ -19,6 +19,7 @@ cdef struct intopstack:
     char op
     int val
     intopstack *nextopstack
+    intopstack *end
 
 
 
@@ -87,6 +88,7 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
 
         newestack.nextestack = estack.nextestack.nextestack
         newopstack.isop = True
+        newopstack.end = stack.end.end
 
         # Commutating operations are tried only once
         if a <= b:
@@ -124,6 +126,7 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
 
     newestack.nextestack = estack
     newopstack.isop = False
+    newopstack.end = stack
 
     cdef count *pcnt = cnt
     cdef count **ppcnt = &cnt
