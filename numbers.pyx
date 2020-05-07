@@ -72,6 +72,7 @@ cdef str exprstr(intopstack *stack):
 
 
 cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
+    cdef int diff
     cdef int bestsolution = limits.INT_MAX
     cdef unsigned a, b, v
     cdef intestack newestack
@@ -145,9 +146,14 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
         pcnt = pcnt.nextcount
 
     if estack is not NULL and estack.nextestack is NULL:
-        if total == estack.val:
+        diff = total - estack.val
+        if diff == 0:
             print(total, "=", exprstr(stack))
-        bestsolution = min(bestsolution, abs(total - estack.val))
+
+        if diff < 0:
+            diff = -diff
+
+        bestsolution = min(bestsolution, diff)
 
     return bestsolution
 
