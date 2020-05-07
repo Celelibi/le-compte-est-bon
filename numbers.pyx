@@ -63,7 +63,7 @@ cdef void printres(int total, intopstack *stack) nogil:
 
 
 
-cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
+cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogil:
     cdef int diff
     cdef int bestsolution = limits.INT_MAX
     cdef unsigned a, b, v
