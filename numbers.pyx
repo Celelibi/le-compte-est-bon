@@ -73,7 +73,6 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
     newopstack.nextopstack = stack
 
     if estack is not NULL and estack.nextestack is not NULL:
-        assert stack is not NULL
         b = estack.val
         a = estack.nextestack.val
 
@@ -86,7 +85,7 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
             # Don't try the right associative formula for the associative operators
             # (a + b) + c will be tried, no need to try a + (b + c) as well.
             # No need to try a + (b - c) either.
-            if not (stack is not NULL and stack.isop and stack.op in (ord('+'), ord('-'))):
+            if not (stack.isop and stack.op in (ord('+'), ord('-'))):
                 newestack.val = a + b
                 newopstack.op = b'+'
                 sol = solve(total, cnt, &newestack, &newopstack)
@@ -95,7 +94,7 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack):
             # Don't multiply by 1
             if a != 1:
                 # Left associativity only
-                if not (stack is not NULL and stack.isop and stack.op in (ord('*'), ord('/'))):
+                if not (stack.isop and stack.op in (ord('*'), ord('/'))):
                     newestack.val = a * b
                     newopstack.op = b'*'
                     sol = solve(total, cnt, &newestack, &newopstack)
