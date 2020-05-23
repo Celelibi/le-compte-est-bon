@@ -11,7 +11,7 @@ COPTFLAGS=-Ofast -march=native -ggdb3
 
 CYFLAGS=-a --embed -3
 CPPFLAGS=$(shell pkg-config --cflags python3-embed)
-CFLAGS=-std=c99 $(CWARNFLAGS) $(COPTFLAGS)
+CFLAGS=-std=c99 -fopenmp $(CWARNFLAGS) $(COPTFLAGS)
 LDFLAGS=$(shell pkg-config --libs python3-embed)
 
 

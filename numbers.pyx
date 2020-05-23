@@ -3,8 +3,11 @@
 import sys
 import random
 from collections import Counter
+from cython import parallel as cypar
+
 from cpython cimport PyObject_Calloc as calloc, PyObject_Free as free
 from libc cimport limits, stdio
+cimport openmp as omp
 
 
 
@@ -27,6 +30,10 @@ cdef struct count:
     unsigned char value
     unsigned char count
     count *nextcount
+
+
+
+cdef omp.omp_lock_t printmutex
 
 
 
@@ -57,9 +64,11 @@ cdef void printexpr(intopstack *stack, int pprio, bint passoc, bint isleft) nogi
 
 
 cdef void printres(int total, intopstack *stack) nogil:
+    omp.omp_set_lock(&printmutex)
     stdio.printf("%d = ", total)
     printexpr(stack, 0, True, True)
     stdio.printf("\n")
+    omp.omp_unset_lock(&printmutex)
 
 
 
@@ -150,6 +159,80 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
 
 
 
+cdef int solve_par(int total, list values):
+    cdef size_t ncnt
+    cdef int i, j
+    cdef count *counts
+    cdef count *pcnt
+    cdef count **ppcnt
+    cdef intestack estack
+    cdef intopstack opstack
+    cdef int sol, bestsolution, threadbest
+    cdef int *pthreadbest
+    cdef int *pbestsolution
+    cdef omp.omp_lock_t mutex
+
+    bestsolution = limits.INT_MAX
+    pbestsolution = &bestsolution
+    omp.omp_init_lock(&mutex)
+
+    c = Counter(values)
+
+    with nogil, cypar.parallel():
+        counts = NULL
+        # Every thread need their own linked list of counts
+        with gil:
+            ncnt = len(c)
+            counts = <count *>calloc(ncnt, sizeof(counts[0]))
+
+            for i, (v, n) in enumerate(c.items()):
+                counts[i] = count(v, n, &counts[i + 1])
+
+        # Don't link the last one
+        counts[ncnt - 1].nextcount = NULL
+
+        # Older versions of cython require the GIL for this
+        with gil:
+            estack = intestack(0, NULL)
+            opstack = intopstack(False, 0, 0, NULL, NULL)
+
+        threadbest = limits.INT_MAX
+        pthreadbest = &threadbest
+        for j in cypar.prange(ncnt, schedule='dynamic'):
+            # Get the j-th element in counts
+            pcnt = &counts[j]
+            ppcnt = &counts
+            if j > 0:
+                ppcnt = &counts[j - 1].nextcount
+
+            estack.val = pcnt.value
+            opstack.val = pcnt.value
+
+            if pcnt.count == 1:
+                ppcnt[0] = pcnt.nextcount
+                sol = solve(total, counts, &estack, &opstack)
+                ppcnt[0] = pcnt
+            else:
+                pcnt.count -= 1
+                sol = solve(total, counts, &estack, &opstack)
+                pcnt.count += 1
+
+            pthreadbest[0] = min(pthreadbest[0], sol)
+
+        omp.omp_set_lock(&mutex)
+        pbestsolution[0] = min(pbestsolution[0], pthreadbest[0])
+        omp.omp_unset_lock(&mutex)
+
+
+        with gil:
+            free(counts)
+
+    omp.omp_destroy_lock(&mutex)
+
+    return bestsolution
+
+
+
 def main():
     if len(sys.argv) >= 3:
         total = int(sys.argv[1])
@@ -162,25 +245,15 @@ def main():
         print("Values:", ", ".join(str(v) for v in values))
         print("Total:", total)
 
-    cdef count *counts = NULL
-    c = Counter(values)
-    counts = <count *>calloc(len(c), sizeof(counts[0]))
-
-    for i, (v, n) in enumerate(c.items()):
-        counts[i] = count(v, n, &counts[i + 1])
-
-    counts[len(c) - 1].nextcount = NULL
-
-    diff = solve(total, counts, NULL, NULL)
+    diff = solve_par(total, values)
     if diff != 0:
         if (total > diff):
-            solve(total - diff, counts, NULL, NULL)
-        solve(total + diff, counts, NULL, NULL)
-
-    free(counts)
-
+            solve_par(total - diff, values)
+        solve_par(total + diff, values)
 
 
 
 if __name__ == '__main__':
+    omp.omp_init_lock(&printmutex)
     main()
+    omp.omp_destroy_lock(&printmutex)
