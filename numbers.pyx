@@ -5,8 +5,7 @@ import random
 from collections import Counter
 from cython import parallel as cypar
 
-from cpython cimport PyObject_Calloc as calloc, PyObject_Free as free
-from libc cimport limits, stdio
+from libc cimport limits, stdio, stdlib
 cimport openmp as omp
 
 
@@ -183,7 +182,7 @@ cdef int solve_par(int total, list values):
         # Every thread need their own linked list of counts
         with gil:
             ncnt = len(c)
-            counts = <count *>calloc(ncnt, sizeof(counts[0]))
+            counts = <count *>stdlib.calloc(ncnt, sizeof(counts[0]))
 
             for i, (v, n) in enumerate(c.items()):
                 counts[i] = count(v, n, &counts[i + 1])
@@ -225,7 +224,7 @@ cdef int solve_par(int total, list values):
 
 
         with gil:
-            free(counts)
+            stdlib.free(counts)
 
     omp.omp_destroy_lock(&mutex)
 
