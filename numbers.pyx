@@ -157,10 +157,30 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
     return bestsolution
 
 
+cdef class calloc(object):
+    cdef void *ptr
+    cdef size_t nmemb
+    cdef size_t size
+
+    def __init__(self, nmemb, size):
+        self.ptr = NULL
+        self.nmemb = nmemb
+        self.size = size
+
+    cdef void *__enter__(self) nogil:
+        self.ptr = stdlib.calloc(self.nmemb, self.size)
+        return self.ptr
+
+    def __exit__(self, *exc):
+        stdlib.free(self.ptr)
+        return False
+
+
 
 cdef int solve_par(int total, list values):
     cdef size_t ncnt
     cdef int i, j
+    cdef void *ptr
     cdef count *counts
     cdef count *pcnt
     cdef count **ppcnt
@@ -176,14 +196,14 @@ cdef int solve_par(int total, list values):
     omp.omp_init_lock(&mutex)
 
     c = Counter(values)
+    ncnt = len(c)
+    counts = NULL
+    cntsz = sizeof(counts[0])
 
-    with nogil, cypar.parallel():
-        counts = NULL
+    with nogil, cypar.parallel(), gil, calloc(ncnt, cntsz) as ptr, nogil:
+        counts = <count *>ptr
         # Every thread need their own linked list of counts
         with gil:
-            ncnt = len(c)
-            counts = <count *>stdlib.calloc(ncnt, sizeof(counts[0]))
-
             for i, (v, n) in enumerate(c.items()):
                 counts[i] = count(v, n, &counts[i + 1])
 
@@ -221,10 +241,6 @@ cdef int solve_par(int total, list values):
         omp.omp_set_lock(&mutex)
         pbestsolution[0] = min(pbestsolution[0], pthreadbest[0])
         omp.omp_unset_lock(&mutex)
-
-
-        with gil:
-            stdlib.free(counts)
 
     omp.omp_destroy_lock(&mutex)
 
