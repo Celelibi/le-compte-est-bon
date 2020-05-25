@@ -179,13 +179,15 @@ cdef class calloc(object):
 
 cdef int solve_par(int total, list values):
     cdef size_t ncnt
-    cdef int i, j
+    cdef int i, p, j, k
     cdef void *ptr
     cdef count *counts
-    cdef count *pcnt
-    cdef count **ppcnt
-    cdef intestack estack
-    cdef intopstack opstack
+    cdef count *pcnt1
+    cdef count *pcnt2
+    cdef count **ppcnt1
+    cdef count **ppcnt2
+    cdef intestack estack1, estack2
+    cdef intopstack opstack1, opstack2
     cdef int sol, bestsolution, threadbest
     cdef int *pthreadbest
     cdef int *pbestsolution
@@ -212,29 +214,58 @@ cdef int solve_par(int total, list values):
 
         # Older versions of cython require the GIL for this
         with gil:
-            estack = intestack(0, NULL)
-            opstack = intopstack(False, 0, 0, NULL, NULL)
+            estack1 = intestack(0, NULL)
+            estack2 = intestack(0, NULL)
+            opstack1 = intopstack(False, 0, 0, NULL, NULL)
+            opstack2 = intopstack(False, 0, 0, NULL, NULL)
 
         threadbest = limits.INT_MAX
         pthreadbest = &threadbest
-        for j in cypar.prange(ncnt, schedule='dynamic'):
-            # Get the j-th element in counts
-            pcnt = &counts[j]
-            ppcnt = &counts
-            if j > 0:
-                ppcnt = &counts[j - 1].nextcount
+        for p in cypar.prange(ncnt**2, schedule='dynamic'):
+            j = p // ncnt
+            k = p % ncnt
+            pcnt1 = &counts[j]
+            pcnt2 = &counts[k]
 
-            estack.val = pcnt.value
-            opstack.val = pcnt.value
+            if j == k and pcnt1.count < 2:
+                continue
 
-            if pcnt.count == 1:
-                ppcnt[0] = pcnt.nextcount
-                sol = solve(total, counts, &estack, &opstack)
-                ppcnt[0] = pcnt
-            else:
-                pcnt.count -= 1
-                sol = solve(total, counts, &estack, &opstack)
-                pcnt.count += 1
+            ppcnt1 = &counts if j == 0 else &counts[j - 1].nextcount
+            ppcnt2 = &counts if k == 0 else &counts[k - 1].nextcount
+
+            pcnt1.count -= 1
+            pcnt2.count -= 1
+
+            # Delink the value counters if they reached 0
+            if j <= k:
+                if pcnt2.count == 0:
+                    ppcnt2[0] = pcnt2.nextcount
+                if pcnt1.count == 0:
+                    ppcnt1[0] = pcnt1.nextcount
+            elif j > k:
+                if pcnt1.count == 0:
+                    ppcnt1[0] = pcnt1.nextcount
+                if pcnt2.count == 0:
+                    ppcnt2[0] = pcnt2.nextcount
+
+            # Prepare the stacks
+            estack1.val = pcnt1.value
+            estack2.val = pcnt2.value
+            estack2.nextestack = &estack1
+
+            opstack1.val = pcnt1.value
+            opstack2.val = pcnt2.value
+            opstack2.nextopstack = &opstack1
+            opstack2.end = &opstack1
+
+            sol = solve(total, counts, &estack2, &opstack2)
+
+            # Relink the counters
+            ppcnt2[0] = pcnt2
+            ppcnt1[0] = pcnt1
+
+            pcnt2.count += 1
+            pcnt1.count += 1
 
             pthreadbest[0] = min(pthreadbest[0], sol)
 
