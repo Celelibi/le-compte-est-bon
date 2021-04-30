@@ -35,12 +35,12 @@ def exprstr(stack):
 
 
 def solve(total, values, estack, stack):
-    def mergesolution(old, new):
-        if old is None:
-            return new
-        return min(old, new)
+    bestsolution = float('inf')
 
-    bestsolution = None
+    if len(estack) == 1:
+        if total == estack[0]:
+            print(total, "=", exprstr(stack))
+        bestsolution = abs(total - estack[0])
 
     if len(estack) >= 2:
         b = estack.pop()
@@ -48,21 +48,27 @@ def solve(total, values, estack, stack):
 
         # Commutating operations are tried only once
         if a <= b:
-            estack.append(a+b)
-            stack.append('+')
-            sol = solve(total, values, estack, stack)
-            stack.pop()
-            estack.pop()
-            bestsolution = mergesolution(bestsolution, sol)
-
-            # Don't multiply by 1
-            if a != 1:
-                estack.append(a*b)
-                stack.append('*')
+            # Don't try the right associative formula for the associative operators
+            # (a + b) + c will be tried, no need to try a + (b + c) as well.
+            # No need to try a + (b - c) either.
+            if stack[-1] not in ("+", "-"):
+                estack.append(a+b)
+                stack.append('+')
                 sol = solve(total, values, estack, stack)
                 stack.pop()
                 estack.pop()
-                bestsolution = mergesolution(bestsolution, sol)
+                bestsolution = min(bestsolution, sol)
+
+            # Don't multiply by 1
+            if a != 1:
+                # Left associativity only
+                if stack[-1] not in ("*", "/"):
+                    estack.append(a*b)
+                    stack.append('*')
+                    sol = solve(total, values, estack, stack)
+                    stack.pop()
+                    estack.pop()
+                    bestsolution = min(bestsolution, sol)
 
         # Only strictly positive integers
         if a > b:
@@ -71,7 +77,7 @@ def solve(total, values, estack, stack):
             sol = solve(total, values, estack, stack)
             stack.pop()
             estack.pop()
-            bestsolution = mergesolution(bestsolution, sol)
+            bestsolution = min(bestsolution, sol)
 
         # Only integers and don't divide by 1
         if b > 1 and a % b == 0:
@@ -80,7 +86,7 @@ def solve(total, values, estack, stack):
             sol = solve(total, values, estack, stack)
             stack.pop()
             estack.pop()
-            bestsolution = mergesolution(bestsolution, sol)
+            bestsolution = min(bestsolution, sol)
 
         estack += [a, b]
 
@@ -92,14 +98,8 @@ def solve(total, values, estack, stack):
         values[v] += 1
         stack.pop()
         estack.pop()
-        bestsolution = mergesolution(bestsolution, sol)
+        bestsolution = min(bestsolution, sol)
 
-    if len(estack) == 1:
-        if total == estack[0]:
-            print(total, "=", exprstr(stack))
-        bestsolution = mergesolution(bestsolution, abs(total - estack[0]))
-
-    assert bestsolution is not None
     return bestsolution
 
 
