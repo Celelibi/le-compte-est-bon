@@ -71,7 +71,7 @@ the amount of computations, it also simplify some conditions on the expression.
 
 It's for example much easier to test if the RPN stack is a completely valid
 expression by testing if the evaluated stack contains only a single element.
-It's also easier to test of an operator can be appended to the RPN stack by
+It's also easier to test if an operator can be appended to the RPN stack by
 testing if the evaluated stack contains at least two elements.
 
 
@@ -87,7 +87,7 @@ two elements on the stack.
 
 **Associative** operators (like + and ×) mean that `a × b = b × a`. Therefore
 there's no need to test both. In order to prune some of those, we can use the
-evaluated RPN to only the cases where `a >= b`. Those leaving only the cases
+evaluated RPN to only the cases where `a >= b`. Thus leaving only the cases
 where `a = b` tested twice.
 
 In a similar way, a **commutative** operator (like + and ×) means that `(a + b) + c = a + (b + c)`.
@@ -105,5 +105,5 @@ the target value and the closest it generated.
 
 This allows the main function to call the enumerating function again. Once with
 the taget value minus the difference, once with the target value plus the
-difference. That way the program prints all the expressions the closest to the
-actual target value.
+difference. That way the program prints all the expressions that are the
+closest to the actual target value.
