@@ -34,7 +34,7 @@ all: $(BIN)
 	gcc -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -fprofile-generate
 
 %.c %.html: %.pyx Makefile
-	python3 $(shell which cython) -o $@ $(CYFLAGS) $<
+	python3 $(shell which cython3) -o $@ $(CYFLAGS) $<
 
 
 .PHONY: clean mrproper
