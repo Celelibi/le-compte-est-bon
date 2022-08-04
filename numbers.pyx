@@ -77,6 +77,9 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
     cdef unsigned a, b, v
     cdef intestack newestack
     cdef intopstack newopstack
+    cdef intopstack *lhs
+    cdef intopstack *rhs
+    cdef bint skip
 
     if estack is not NULL and estack.nextestack is NULL:
         diff = total - estack.val
@@ -89,6 +92,8 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
     newopstack.nextopstack = stack
 
     if estack is not NULL and estack.nextestack is not NULL:
+        rhs = stack
+        lhs = stack.end
         b = estack.val
         a = estack.nextestack.val
 
@@ -98,11 +103,20 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
 
         # Commutating operations are tried only once
         if a <= b:
-            # Don't try the right associative formula for the associative operators
-            # (a + b) + c will be tried, no need to try a + (b + c) as well.
-            # No need to try a + (b - c) either.
-            if not (stack.isop and stack.op in (ord('+'), ord('-'))):
-                newestack.val = a + b
+            # Don't try the some associative formula for the associative
+            # operators if it leads to unordered operands.
+            # i.e. skip a + (b + c) if a > b. It will be tried as either:
+            # b + (a + c) if a <= c or b + (c + a) if c <= a
+            # Skip (a + b) + c if b > c for the same reason.
+            #
+            # Also skip a + (b - c), (a + b) - c is always prefered
+            # Also skip (a - b) + c, (a + c) - b is always prefered
+            skip = False
+            skip |= (rhs.isop and rhs.op == b'-')
+            skip |= (lhs.isop and lhs.op == b'-')
+            skip |= (rhs.isop and rhs.op == b'+' and rhs.nextopstack.end.val < lhs.val)
+            skip |= (lhs.isop and lhs.op == b'+' and lhs.nextopstack.val > rhs.val)
+            if not skip:
                 newopstack.op = b'+'
                 sol = solve(total, cnt, &newestack, &newopstack)
                 bestsolution = min(bestsolution, sol)
@@ -110,8 +124,12 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
             # Don't multiply by 1
             if a != 1:
                 # Left associativity only
-                if not (stack.isop and stack.op in (ord('*'), ord('/'))):
-                    newestack.val = a * b
+                skip = False
+                skip |= (rhs.isop and rhs.op == b'/')
+                skip |= (lhs.isop and lhs.op == b'/')
+                skip |= (rhs.isop and rhs.op == b'*' and rhs.nextopstack.end.val < lhs.val)
+                skip |= (lhs.isop and lhs.op == b'*' and lhs.nextopstack.val > rhs.val)
+                if not skip:
                     newopstack.op = b'*'
                     sol = solve(total, cnt, &newestack, &newopstack)
                     bestsolution = min(bestsolution, sol)
