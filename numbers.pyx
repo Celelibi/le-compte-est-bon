@@ -10,12 +10,6 @@ cimport openmp as omp
 
 
 
-cdef struct intestack:
-    int val
-    intestack *nextestack
-
-
-
 cdef struct intopstack:
     bint isop
     char op
@@ -71,18 +65,17 @@ cdef void printres(int total, intopstack *stack) nogil:
 
 
 
-cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogil:
+cdef int solve(int total, count *cnt, intopstack *stack) nogil:
     cdef int diff
     cdef int bestsolution = limits.INT_MAX
     cdef unsigned a, b, v
-    cdef intestack newestack
     cdef intopstack newopstack
     cdef intopstack *lhs
     cdef intopstack *rhs
     cdef bint skip
 
-    if estack is not NULL and estack.nextestack is NULL:
-        diff = total - estack.val
+    if stack is not NULL and stack.end is NULL:
+        diff = total - stack.val
         if diff == 0:
             printres(total, stack)
         if diff < 0:
@@ -91,13 +84,12 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
 
     newopstack.nextopstack = stack
 
-    if estack is not NULL and estack.nextestack is not NULL:
+    if stack is not NULL and stack.end is not NULL:
         rhs = stack
         lhs = stack.end
-        b = estack.val
-        a = estack.nextestack.val
+        a = lhs.val
+        b = rhs.val
 
-        newestack.nextestack = estack.nextestack.nextestack
         newopstack.isop = True
         newopstack.end = stack.end.end
 
@@ -118,7 +110,8 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
             skip |= (lhs.isop and lhs.op == b'+' and lhs.nextopstack.val > rhs.val)
             if not skip:
                 newopstack.op = b'+'
-                sol = solve(total, cnt, &newestack, &newopstack)
+                newopstack.val = a + b
+                sol = solve(total, cnt, &newopstack)
                 bestsolution = min(bestsolution, sol)
 
             # Don't multiply by 1
@@ -131,24 +124,24 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
                 skip |= (lhs.isop and lhs.op == b'*' and lhs.nextopstack.val > rhs.val)
                 if not skip:
                     newopstack.op = b'*'
-                    sol = solve(total, cnt, &newestack, &newopstack)
+                    newopstack.val = a * b
+                    sol = solve(total, cnt, &newopstack)
                     bestsolution = min(bestsolution, sol)
 
         # Only strictly positive integers
         if a > b:
-            newestack.val = a - b
             newopstack.op = b'-'
-            sol = solve(total, cnt, &newestack, &newopstack)
+            newopstack.val = a - b
+            sol = solve(total, cnt, &newopstack)
             bestsolution = min(bestsolution, sol)
 
         # Only integers and don't divide by 1
         if b > 1 and a % b == 0:
-            newestack.val = a // b
             newopstack.op = b'/'
-            sol = solve(total, cnt, &newestack, &newopstack)
+            newopstack.val = a // b
+            sol = solve(total, cnt, &newopstack)
             bestsolution = min(bestsolution, sol)
 
-    newestack.nextestack = estack
     newopstack.isop = False
     newopstack.end = stack
 
@@ -156,16 +149,15 @@ cdef int solve(int total, count *cnt, intestack *estack, intopstack *stack) nogi
     cdef count **ppcnt = &cnt
     while pcnt is not NULL:
         v = pcnt.value
-        newestack.val = v
         newopstack.val = v
 
         if pcnt.count == 1:
             ppcnt[0] = pcnt.nextcount
-            sol = solve(total, cnt, &newestack, &newopstack)
+            sol = solve(total, cnt, &newopstack)
             ppcnt[0] = pcnt
         else:
             pcnt.count -= 1
-            sol = solve(total, cnt, &newestack, &newopstack)
+            sol = solve(total, cnt, &newopstack)
             pcnt.count += 1
 
         bestsolution = min(bestsolution, sol)
@@ -204,7 +196,6 @@ cdef int solve_par(int total, list values):
     cdef count *pcnt2
     cdef count **ppcnt1
     cdef count **ppcnt2
-    cdef intestack estack1, estack2
     cdef intopstack opstack1, opstack2
     cdef int sol, bestsolution, threadbest
     cdef int *pthreadbest
@@ -232,8 +223,6 @@ cdef int solve_par(int total, list values):
 
         # Older versions of cython require the GIL for this
         with gil:
-            estack1 = intestack(0, NULL)
-            estack2 = intestack(0, NULL)
             opstack1 = intopstack(False, 0, 0, NULL, NULL)
             opstack2 = intopstack(False, 0, 0, NULL, NULL)
 
@@ -267,16 +256,12 @@ cdef int solve_par(int total, list values):
                     ppcnt2[0] = pcnt2.nextcount
 
             # Prepare the stacks
-            estack1.val = pcnt1.value
-            estack2.val = pcnt2.value
-            estack2.nextestack = &estack1
-
             opstack1.val = pcnt1.value
             opstack2.val = pcnt2.value
             opstack2.nextopstack = &opstack1
             opstack2.end = &opstack1
 
-            sol = solve(total, counts, &estack2, &opstack2)
+            sol = solve(total, counts, &opstack2)
 
             # Relink the counters
             ppcnt2[0] = pcnt2
