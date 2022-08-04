@@ -24,14 +24,12 @@ all: $(BIN)
 # Remove the implicity rule
 %: %.c
 
-%: %.c %.gcda Makefile
-	gcc -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -fprofile-use
+.INTERMEDIATE: $(GCDAFILES)
 
-%.gcda: %.inst Makefile
-	./$< 404 5 10 7 3 1 75 1 1 1 > /dev/null
-
-%.inst: %.c Makefile
+% %.gcda: %.c Makefile
 	gcc -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -fprofile-generate
+	./$@ 404 5 10 7 3 1 75 1 1 1 > /dev/null
+	gcc -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -fprofile-use
 
 %.c %.html: %.pyx Makefile
 	python3 $(shell which cython3) -o $@ $(CYFLAGS) $<
