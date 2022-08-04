@@ -65,6 +65,20 @@ cdef void printres(int total, intopstack *stack) nogil:
 
 
 
+cdef int rightmost(intopstack *stack, char op) nogil:
+    while stack.isop and stack.op == op:
+        stack = stack.nextopstack
+    return stack.val
+
+
+
+cdef int leftmost(intopstack *stack, char op) nogil:
+    while stack.isop and stack.op == op:
+        stack = stack.nextopstack.end
+    return stack.val
+
+
+
 cdef int solve(int total, count *cnt, intopstack *stack) nogil:
     cdef int diff
     cdef int bestsolution = limits.INT_MAX
@@ -106,8 +120,8 @@ cdef int solve(int total, count *cnt, intopstack *stack) nogil:
             skip = False
             skip |= (rhs.isop and rhs.op == b'-')
             skip |= (lhs.isop and lhs.op == b'-')
-            skip |= (rhs.isop and rhs.op == b'+' and rhs.nextopstack.end.val < lhs.val)
-            skip |= (lhs.isop and lhs.op == b'+' and lhs.nextopstack.val > rhs.val)
+            skip |= (leftmost(rhs, b'+') < lhs.val)
+            skip |= (rightmost(lhs, b'+') > rhs.val)
             if not skip:
                 newopstack.op = b'+'
                 newopstack.val = a + b
@@ -120,8 +134,8 @@ cdef int solve(int total, count *cnt, intopstack *stack) nogil:
                 skip = False
                 skip |= (rhs.isop and rhs.op == b'/')
                 skip |= (lhs.isop and lhs.op == b'/')
-                skip |= (rhs.isop and rhs.op == b'*' and rhs.nextopstack.end.val < lhs.val)
-                skip |= (lhs.isop and lhs.op == b'*' and lhs.nextopstack.val > rhs.val)
+                skip |= (leftmost(rhs, b'*') < lhs.val)
+                skip |= (rightmost(lhs, b'*') > rhs.val)
                 if not skip:
                     newopstack.op = b'*'
                     newopstack.val = a * b
