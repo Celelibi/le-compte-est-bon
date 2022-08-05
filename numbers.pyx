@@ -72,10 +72,29 @@ cdef int rightmost(intopstack *stack, char op) nogil:
 
 
 
-cdef int leftmost(intopstack *stack, char op) nogil:
-    while stack.isop and stack.op == op:
-        stack = stack.nextopstack.end
-    return stack.val
+cdef int cmp(intopstack *expr1, intopstack *expr2) nogil:
+    cdef int res
+
+    res = expr1.isop - expr2.isop
+    if res != 0:
+        return res
+
+    # Either both are operators or both are not
+    if not expr1.isop:
+        return expr1.val - expr2.val
+
+    # Compare the operators themselves
+    res = expr1.op - expr2.op
+    if res != 0:
+        return res
+
+    # Compare the right hand side of both expressions
+    res = cmp(expr1.nextopstack, expr2.nextopstack)
+    if res != 0:
+        return res
+
+    # In last resort, compare the left hand side of both expressions
+    return cmp(expr1.nextopstack.end, expr2.nextopstack.end)
 
 
 
@@ -87,6 +106,7 @@ cdef int solve(int total, count *cnt, intopstack *stack) nogil:
     cdef intopstack *lhs
     cdef intopstack *rhs
     cdef bint skip
+    cdef int rightval
 
     if stack is not NULL and stack.end is NULL:
         diff = total - stack.val
@@ -107,40 +127,46 @@ cdef int solve(int total, count *cnt, intopstack *stack) nogil:
         newopstack.isop = True
         newopstack.end = stack.end.end
 
-        # Commutating operations are tried only once
-        if a <= b:
-            # Don't try the some associative formula for the associative
-            # operators if it leads to unordered operands.
-            # i.e. skip a + (b + c) if a > b. It will be tried as either:
-            # b + (a + c) if a <= c or b + (c + a) if c <= a
-            # Skip (a + b) + c if b > c for the same reason.
-            #
-            # Also skip a + (b - c), (a + b) - c is always prefered
-            # Also skip (a - b) + c, (a + c) - b is always prefered
-            skip = False
-            skip |= (rhs.isop and rhs.op == b'-')
-            skip |= (lhs.isop and lhs.op == b'-')
-            skip |= (leftmost(rhs, b'+') < lhs.val)
-            skip |= (rightmost(lhs, b'+') > rhs.val)
+        # Don't try the some associative formula for the associative operators.
+        # Try to keep the numbers in increasing order and the formula left
+        # associative.
+        # i.e. skip a + (b + c) and prefer (a + b) + c
+        # Skip (a + c) + b if c > b
+        # The function cmp define a total order on expressions to avoid testing
+        # both a + b and b + a
+        #
+        # Also skip a + (b - c), (a + b) - c is always prefered
+        # Also skip (a - b) + c, (a + c) - b is always prefered
+        skip = (rhs.isop and rhs.op in (b'-', b'+'))
+        skip = skip or (lhs.isop and lhs.op == b'-')
+        if not skip:
+            rightval = rightmost(lhs, b'+')
+            skip = skip or (rightval > rhs.val)
+            if not skip and rightval == rhs.val:
+                skip = skip or (cmp(lhs, rhs) > 0)
+
+        if not skip:
+            newopstack.op = b'+'
+            newopstack.val = a + b
+            sol = solve(total, cnt, &newopstack)
+            bestsolution = min(bestsolution, sol)
+
+        # Don't multiply by 1
+        if a != 1 and b != 1:
+            # Left associativity only
+            skip = (rhs.isop and rhs.op in (b'/', b'*'))
+            skip = skip or (lhs.isop and lhs.op == b'/')
             if not skip:
-                newopstack.op = b'+'
-                newopstack.val = a + b
+                rightval = rightmost(lhs, b'*')
+                skip = skip or (rightval > rhs.val)
+                if not skip and rightval == rhs.val:
+                    skip = skip or (cmp(lhs, rhs) > 0)
+
+            if not skip:
+                newopstack.op = b'*'
+                newopstack.val = a * b
                 sol = solve(total, cnt, &newopstack)
                 bestsolution = min(bestsolution, sol)
-
-            # Don't multiply by 1
-            if a != 1:
-                # Left associativity only
-                skip = False
-                skip |= (rhs.isop and rhs.op == b'/')
-                skip |= (lhs.isop and lhs.op == b'/')
-                skip |= (leftmost(rhs, b'*') < lhs.val)
-                skip |= (rightmost(lhs, b'*') > rhs.val)
-                if not skip:
-                    newopstack.op = b'*'
-                    newopstack.val = a * b
-                    sol = solve(total, cnt, &newopstack)
-                    bestsolution = min(bestsolution, sol)
 
         # Only strictly positive integers
         if a > b:
