@@ -30,7 +30,7 @@ cdef omp.omp_lock_t printmutex
 
 
 
-cdef void printexpr(intopstack *stack, int pprio, bint passoc, bint isleft) nogil:
+cdef void printexpr(intopstack *stack, int pprio, bint passoc, bint isleft) noexcept nogil:
     if not stack.isop:
         stdio.printf("%d", stack.val)
         return
@@ -56,7 +56,7 @@ cdef void printexpr(intopstack *stack, int pprio, bint passoc, bint isleft) nogi
 
 
 
-cdef void printres(int total, intopstack *stack) nogil:
+cdef void printres(int total, intopstack *stack) noexcept nogil:
     omp.omp_set_lock(&printmutex)
     stdio.printf("%d = ", total)
     printexpr(stack, 0, True, True)
@@ -65,14 +65,14 @@ cdef void printres(int total, intopstack *stack) nogil:
 
 
 
-cdef int rightmost(intopstack *stack, char op) nogil:
+cdef int rightmost(intopstack *stack, char op) noexcept nogil:
     while stack.isop and stack.op == op:
         stack = stack.nextopstack
     return stack.val
 
 
 
-cdef int cmp(intopstack *expr1, intopstack *expr2) nogil:
+cdef int cmp(intopstack *expr1, intopstack *expr2) noexcept nogil:
     cdef int res
 
     res = expr1.isop - expr2.isop
@@ -98,7 +98,7 @@ cdef int cmp(intopstack *expr1, intopstack *expr2) nogil:
 
 
 
-cdef int solve(int total, count *cnt, intopstack *stack) nogil:
+cdef int solve(int total, count *cnt, intopstack *stack) noexcept nogil:
     cdef int diff
     cdef int bestsolution = limits.INT_MAX
     cdef unsigned a, b, v
